@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plateforme d'Évaluation des Postures Professionnelles</title>
+    <!-- Bibliothèques pour Graphiques, Excel (SheetJS) et PDF (html2pdf) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #111827; 
+            --secondary: #374151; 
+            --accent: #2563eb; 
+            --user-color: #10b981; 
+            --bg: #f3f4f6; 
+            --white: #ffffff;
+            --success: #10b981;
+            /* Couleurs dédiées aux candidats */
+            --c-A: #3b82f6; --c-B: #10b981; --c-C: #f59e0b; --c-D: #8b5cf6; --c-E: #ec4899;
+            /* Couleurs IA */
+            --ia-gemini: #94a3b8; --ia-copilot: #64748b; --ia-claude: #475569; --ia-mistral: #334155; --ia-chatgpt: #1e293b;
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; color: #1f2937; }
+        
+        .color-A { color: var(--c-A); } .color-B { color: var(--c-B); } .color-C { color: var(--c-C); } .color-D { color: var(--c-D); } .color-E { color: var(--c-E); }
+
+        /* Écrans de Connexion / Modales */
+        .overlay-screen { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #111827 0%, #1f2937 100%); position: fixed; width: 100%; z-index: 1000; top: 0; left: 0; }
+        .login-box { text-align: center; padding: 40px; background: rgba(255, 255, 255, 0.95); border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 400px; backdrop-filter: blur(10px); }
+        .login-box h1 { color: var(--primary); margin-bottom: 20px; font-size: 20px; font-weight: 800; }
+        .login-box input { padding: 15px; width: 100%; border: 2px solid #e5e7eb; border-radius: 8px; outline: none; text-align: center; font-size: 15px; margin-bottom: 15px; font-weight: 600; }
+        .login-box input:focus { border-color: var(--accent); }
+        .login-box button { padding: 15px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; width: 100%; font-size: 15px; transition: 0.3s; }
+        .login-box button:hover { background: #1d4ed8; }
+        .error-msg { color: #ef4444; display: none; margin-top: 10px; font-weight: 600; font-size: 13px; }
+        .legal-link { display: inline-block; margin-top: 20px; font-size: 12px; color: #6b7280; text-decoration: none; cursor: pointer; border-bottom: 1px dashed #6b7280; }
+        .legal-link:hover { color: var(--primary); border-bottom-color: var(--primary); }
+        
+        /* En-tête */
+        header { background: linear-gradient(90deg, #111827, #1f2937); color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--accent); box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; }
+        .header-left h2 { margin: 0; font-size: 18px; font-weight: 800; text-transform: uppercase; }
+        .header-left p { margin: 2px 0 0; font-size: 12px; opacity: 0.8; }
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        
+        .btn-ia-corner { background: #374151; color: #9ca3af; border: 1px solid #4b5563; border-radius: 50%; width: 35px; height: 35px; display: flex; justify-content: center; align-items: center; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.3s; }
+        .btn-ia-corner:hover { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.1); }
+
+        /* Structure Principale */
+        .container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Barre Audios */
+        .audio-section { width: 280px; padding: 20px; border-right: 1px solid #e5e7eb; overflow-y: auto; background: var(--white); box-shadow: 2px 0 10px rgba(0,0,0,0.02); z-index: 5; }
+        .audio-card { background: #f9fafb; padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #f3f4f6; transition: 0.2s; border-left-width: 4px; border-left-style: solid; }
+        .audio-card:hover { transform: translateX(3px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .cand-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 700; font-size: 13px; }
+        
+        /* Zone de Travail */
+        .workspace { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
+        .tabs-nav { display: flex; background: var(--white); padding: 15px 30px 0; border-bottom: 1px solid #e5e7eb; gap: 8px; }
+        .tab-btn { background: transparent; color: #6b7280; border: none; padding: 12px 18px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; font-size: 13px; transition: 0.2s; border-bottom: 3px solid transparent; }
+        .tab-btn:hover { color: var(--primary); background: #f9fafb; }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--bg); }
+        
+        .tab-content { display: none; padding: 25px 30px; overflow-y: auto; height: 100%; }
+        .tab-content.active { display: block; }
+
+        /* Navigation des Situations */
+        .step-navigation { display: flex; gap: 8px; margin-bottom: 20px; background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+        .step-btn { flex: 1; padding: 10px; border: none; background: #f3f4f6; border-radius: 8px; cursor: pointer; font-weight: bold; color: #6b7280; font-size: 12px; transition: 0.2s; }
+        .step-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 10px rgba(37,99,235,0.2); }
+        .step-btn:hover:not(.active) { background: #e5e7eb; color: var(--primary); }
+
+        /* Grille & Tableaux */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); overflow: hidden; margin-bottom: 20px; }
+        th { background: #f9fafb; padding: 12px; text-transform: uppercase; font-size: 11px; font-weight: 800; text-align: center; border-bottom: 1px solid #e5e7eb; }
+        th:first-child { text-align: left; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; text-align: center; vertical-align: middle; }
+        td:first-child { text-align: left; font-size: 11.5px; line-height: 1.4; font-weight: 500; color: #1f2937; width: 55%; }
+        
+        /* Saisie clavier rapide */
+        .select-eval { padding: 8px 6px; border-radius: 6px; border: 1px solid #d1d5db; background-color: #f9fafb; font-weight: 800; text-align: center; font-size: 14px; transition: 0.2s; width: 50px; outline: none; }
+        .select-eval:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background-color: white; }
+        .select-eval.is-null { background-color: #fef2f2; border-color: #f87171; color: #ef4444; }
+
+        .btn-action { display: block; width: 100%; color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; font-weight: 800; font-size: 14px; text-transform: uppercase; transition: 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-action:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.2); }
+
+        /* Sélecteur de Candidat global */
+        .cand-selector-bar { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
+        .cand-select-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 30px; border: 2px solid transparent; background: white; cursor: pointer; font-weight: 700; font-size: 13px; color: #4b5563; transition: 0.3s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .cand-select-btn.active[data-cand="A"] { border-color: var(--c-A); color: var(--c-A); background: #eff6ff; box-shadow: 0 4px 12px rgba(59,130,246,0.2); }
+        .cand-select-btn.active[data-cand="B"] { border-color: var(--c-B); color: var(--c-B); background: #ecfdf5; box-shadow: 0 4px 12px rgba(16,185,129,0.2); }
+        .cand-select-btn.active[data-cand="C"] { border-color: var(--c-C); color: var(--c-C); background: #fffbeb; box-shadow: 0 4px 12px rgba(245,158,11,0.2); }
+        .cand-select-btn.active[data-cand="D"] { border-color: var(--c-D); color: var(--c-D); background: #f5f3ff; box-shadow: 0 4px 12px rgba(139,92,246,0.2); }
+        .cand-select-btn.active[data-cand="E"] { border-color: var(--c-E); color: var(--c-E); background: #fdf2f8; box-shadow: 0 4px 12px rgba(236,72,153,0.2); }
+
+        .chart-controls { display: flex; gap: 8px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap; }
+        .filter-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #d1d5db; background: white; cursor: pointer; font-size: 11px; font-weight: 700; color: #6b7280; transition: 0.2s; }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .chart-container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); max-width: 900px; margin: 0 auto; }
+
+        /* Vue Situation */
+        .sit-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 12px 20px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .sit-card-name { font-weight: 800; font-size: 13px; width: 140px; }
+        .sit-card-score { font-weight: 900; font-size: 15px; width: 60px; text-align: right; }
+        .sit-card-bar-bg { flex: 1; margin: 0 20px; background: #f3f4f6; height: 12px; border-radius: 6px; overflow: hidden; }
+        .sit-card-bar-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
+
+        /* Modales */
+        .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(17,24,39,0.85); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; width: 90%; max-width: 900px; height: 85vh; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        .modal-header { background: #1f2937; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; overflow-y: auto; flex: 1; background: var(--bg); }
+        .btn-close-modal { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+        
+        .rgpd-box { background: white; max-width: 700px; width: 90%; max-height: 85vh; padding: 40px; border-radius: 12px; text-align: left; display: flex; flex-direction: column; }
+        .rgpd-box h3 { color: var(--primary); margin-top: 0; border-bottom: 2px solid var(--accent); padding-bottom: 15px; }
+
+        .ia-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }
+        .ia-tab-btn { background: none; border: none; font-weight: 700; color: #6b7280; padding: 8px 16px; cursor: pointer; border-radius: 6px; font-size: 13px; transition: 0.2s; }
+        .ia-tab-btn.active { background: #8b5cf6; color: white; }
+        .ia-tab-content { display: none; }
+        .ia-tab-content.active { display: block; }
+
+        /* Bouton Pilule Contexte */
+        .btn-context { background: #111827; color: white; border: none; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; }
+        .btn-context:hover { background: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <!-- GESTION AUDIO GLOBALE : Auto-pause des autres pistes -->
+    <script>
+        document.addEventListener('play', function(e){
+            if (e.target.tagName === 'AUDIO') {
+                const audios = document.getElementsByTagName('audio');
+                for(let i = 0; i < audios.length; i++){
+                    if(audios[i] !== e.target){
+                        audios[i].pause();
+                    }
+                }
+                if(e.target.id !== 'audio-context') {
+                    const btn = document.getElementById('btn-context-play');
+                    if(btn) btn.innerHTML = '▶ CONTEXTE S' + currentSit;
+                }
+            }
+        }, true);
+    </script>
+
+    <!-- CONNEXION PRINCIPALE -->
+    <div id="login-page" class="overlay-screen">
+        <div class="login-box">
+            <h1>AUDIT DES POSTURES</h1>
+            <p style="color: #6b7280; font-size: 13px; margin-bottom: 20px;">Plateforme académique d'évaluation</p>
+            <input type="password" id="pass-input" placeholder="Clé d'accès">
+            <button onclick="loginMain()">SE CONNECTER</button>
+            <p id="error-msg-main" class="error-msg">Identifiant incorrect</p>
+            <span class="legal-link" onclick="openRGPD()">Politique de confidentialité (RGPD)</span>
+        </div>
+    </div>
+
+    <!-- MODALE CONDITIONS / RGPD (Renforcée) -->
+    <div id="modal-rgpd" class="modal-overlay">
+        <div class="rgpd-box">
+            <h3>Politique de Confidentialité et Traitement des Données (RGPD)</h3>
+            <div style="overflow-y: auto; flex: 1; padding-right: 15px; font-size: 13px; line-height: 1.6; color: #374151; margin-bottom: 20px;">
+                <p><strong>1. Préambule et Cadre d'Utilisation</strong><br>
+                La présente plateforme web est éditée et exploitée à des fins strictement académiques et de recherche, dans le cadre exclusif d'un mémoire du Diplôme Supérieur de Comptabilité et de Gestion (DSCG). Toute exploitation commerciale ou diffusion publique des données qui y sont hébergées est rigoureusement interdite.</p>
+                
+                <p><strong>2. Nature des Données Collectées</strong><br>
+                Dans le cadre de cette expérimentation évaluant les compétences comportementales (soft skills) en milieu professionnel, des enregistrements vocaux ont été collectés avec le consentement préalable des participants. Le système centralise également des données d'évaluation qualitatives et quantitatives générées par des modèles d'Intelligence Artificielle ainsi que par l'évaluateur (utilisateur).</p>
+
+                <p><strong>3. Mesures de Pseudonymisation et de Sécurité</strong><br>
+                Conformément aux principes de minimisation dictés par le Règlement Général sur la Protection des Données (RGPD - UE 2016/679), l'identité civile des participants a été masquée et pseudonymisée. Les individus sont désignés exclusivement par des alias alphanumériques (ex: Candidat A, Candidat B). Les flux audios et les résultats sont isolés sur un environnement restreint, sécurisé par des protocoles d'authentification.</p>
+
+                <p><strong>4. Durée de Conservation et Droits des Personnes</strong><br>
+                Les données seront conservées uniquement pour la durée strictement nécessaire à l'analyse, la rédaction et la soutenance du mémoire de recherche. À l'issue de cette période, les données brutes seront définitivement détruites. Tout participant conserve un droit d'accès, de rectification, de limitation et d'effacement de ses données, applicable sur simple requête.</p>
+                
+                <p><strong>5. Engagement de l'Évaluateur</strong><br>
+                En vous connectant à cet espace sécurisé, vous vous engagez formellement à respecter le secret professionnel inhérent à cette recherche. Vous vous interdisez de télécharger, copier, enregistrer, reproduire ou partager les pistes audios et les synthèses analytiques avec des tiers non autorisés.</p>
+            </div>
+            <button onclick="closeRGPD()" style="width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">J'ai compris et j'accepte les conditions</button>
+        </div>
+    </div>
+
+    <!-- MODALE DONNÉES IA -->
+    <div id="modal-ia" class="modal-overlay">
+        <div id="ia-auth" class="login-box" style="position: relative;">
+            <button onclick="closeIAModal()" style="position:absolute; top:10px; right:10px; background:none; color:#9ca3af; width:auto; padding:5px; font-size:18px;">X</button>
+            <h2 style="color: #8b5cf6; margin-top:0;">BASE DE DONNÉES IA</h2>
+            <input type="password" id="pass-ia" placeholder="Clé d'accès">
+            <button onclick="loginIA()" style="background: #8b5cf6;">DÉVERROUILLER</button>
+            <p id="error-msg-ia" class="error-msg">Accès refusé</p>
+        </div>
+
+        <div id="ia-dashboard" class="modal-content" style="display: none;">
+            <div class="modal-header">
+                <div style="font-weight:bold; display:flex; align-items:center; gap:10px;">
+                    <span style="background:#8b5cf6; padding:4px 8px; border-radius:4px; font-size:11px;">DONNÉES BRUTES</span> Explorateur de Notes IA
+                </div>
+                <button class="btn-close-modal" onclick="closeIAModal()">X</button>
+            </div>
+            <div class="modal-body">
+                <div class="ia-tabs">
+                    <button class="ia-tab-btn active" onclick="switchIATab('ia-global', this)">Données Globales</button>
+                    <button class="ia-tab-btn" onclick="switchIATab('ia-candidats', this)">Par Candidats</button>
+                    <button class="ia-tab-btn" onclick="switchIATab('ia-modeles', this)">Par IA</button>
+                </div>
+                <div id="ia-global" class="ia-tab-content active"></div>
+                <div id="ia-candidats" class="ia-tab-content"></div>
+                <div id="ia-modeles" class="ia-tab-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <div class="header-left">
+            <h2 id="sit-header">PLATEFORME D'AUDIT</h2>
+            <p>Grille d'évaluation des soft skills (- : Incomplet, 0: Insuffisant, 1: Bien, 2: Excellent)</p>
+        </div>
+        <div class="header-right">
+            <button class="btn-ia-corner" onclick="openIAModal()" title="Voir les notes IA">IA</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- BARRE LATERALE AUDIOS -->
+        <div class="audio-section" id="audio-list"></div>
+
+        <!-- ZONE DE TRAVAIL -->
+        <div class="workspace">
+            <div class="tabs-nav">
+                <button class="tab-btn active" onclick="switchTab('tab-grille', this)">Grille de Notation</button>
+                <button class="tab-btn" onclick="switchTab('tab-analyse', this)">Analyse par Candidat</button>
+                <button class="tab-btn" onclick="switchTab('tab-maths', this)">Analyse Mathématique</button>
+                <button class="tab-btn" onclick="switchTab('tab-decision', this)" style="color:var(--primary); font-weight:800;">Aide à la Décision</button>
+            </div>
+
+            <!-- ONGLET 1 : GRILLE -->
+            <div id="tab-grille" class="tab-content active">
+                <div class="step-navigation" id="step-nav">
+                    <button class="step-btn active" onclick="goToSituation(1)">S1: Présentation</button>
+                    <button class="step-btn" onclick="goToSituation(2)">S2: Client</button>
+                    <button class="step-btn" onclick="goToSituation(3)">S3: Réunion</button>
+                    <button class="step-btn" onclick="goToSituation(4)">S4: Frais</button>
+                    <button class="step-btn" onclick="goToSituation(5)">S5: Agenda</button>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Critères de la situation en cours</th>
+                            <th class="color-A">Cand. A</th>
+                            <th class="color-B">Cand. B</th>
+                            <th class="color-C">Cand. C</th>
+                            <th class="color-D">Cand. D</th>
+                            <th class="color-E">Cand. E</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grille-content"></tbody>
+                </table>
+                <div style="text-align: center; font-size: 12px; color: #6b7280; font-weight: bold; padding: 10px;">
+                    Indication : Utilisez la touche [Tab] pour naviguer rapidement et saisissez 0, 1 ou 2 au clavier.
+                </div>
+            </div>
+
+            <!-- ONGLET 2 : ANALYSE PAR CANDIDAT -->
+            <div id="tab-analyse" class="tab-content">
+                <div class="cand-selector-bar" id="cand-selector-analyse"></div>
+                <div class="chart-controls">
+                    <button class="filter-btn active" onclick="updateAnalysisChart('global', this)">Score Global (S1 - S5)</button>
+                    <button class="filter-btn" onclick="updateAnalysisChart(1, this)">Analyse S1</button>
+                    <button class="filter-btn" onclick="updateAnalysisChart(2, this)">Analyse S2</button>
+                    <button class="filter-btn" onclick="updateAnalysisChart(3, this)">Analyse S3</button>
+                    <button class="filter-btn" onclick="updateAnalysisChart(4, this)">Analyse S4</button>
+                    <button class="filter-btn" onclick="updateAnalysisChart(5, this)">Analyse S5</button>
+                </div>
+                
+                <div class="chart-container" id="chart-container-global">
+                    <canvas id="analysisChart" height="110"></canvas>
+                </div>
+                
+                <div class="chart-container" id="chart-container-situation" style="display: none; padding: 25px 40px;">
+                    <h3 id="sit-view-title" style="margin-top:0; color:var(--primary); font-size:16px; text-align:center; margin-bottom: 20px;"></h3>
+                    <div id="sit-view-content"></div>
+                </div>
+            </div>
+
+            <!-- ONGLET 3 : ANALYSE MATHÉMATIQUE -->
+            <div id="tab-maths" class="tab-content">
+                <div class="cand-selector-bar" id="cand-selector-maths"></div>
+                
+                <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px;">
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                        <h3 style="margin-top:0; color:var(--primary); font-size:16px;">Indicateurs Statistiques Détaillés</h3>
+                        <div id="math-table-container"></div>
+                        
+                        <div style="margin-top: 20px; padding: 20px; background: #f8fafc; border-radius: 8px; border-left: 4px solid var(--accent); display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-size: 12px; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Corrélation de Pearson (r)</span>
+                                <p style="font-size: 11px; color: #94a3b8; margin: 4px 0 0 0; max-width: 250px;">Relation entre la tendance UTILISATEUR et le consensus IA.</p>
+                                <p style="font-size: 10px; color: #64748b; margin: 4px 0 0 0; font-style: italic;">Indicateur de similarité : Vert (Fort, &ge;0.5), Jaune (Faible/Neutre, &ge;0), Rouge (Divergence, &lt;0).</p>
+                            </div>
+                            <div id="pearson-value" style="font-size: 32px; font-weight: 900; color: #111827; text-align: right;">-</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); display: flex; flex-direction: column;">
+                        <h3 style="margin-top:0; color:var(--primary); font-size:16px;">Superposition (UTILISATEUR vs Moyenne IA)</h3>
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; width: 100%;">
+                            <canvas id="mathChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ONGLET 4 : AIDE A LA DECISION & EXPORTS -->
+            <div id="tab-decision" class="tab-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                        <h3 style="margin-top:0; color:var(--primary); font-size:16px; border-bottom: 2px solid var(--accent); padding-bottom: 10px;">RÉCAPITULATIF DES SCORES (/100)</h3>
+                        <div id="decision-table-container"></div>
+                    </div>
+                    <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                        <h3 style="margin-top:0; color:var(--primary); font-size:16px; border-bottom: 2px solid var(--accent); padding-bottom: 10px;">CLASSEMENTS & RECOMMANDATION</h3>
+                        <div id="decision-ranking-container"></div>
+                    </div>
+                </div>
+                
+                <div style="background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                    <h3 style="margin-top:0; color:var(--primary); font-size:16px; text-align: center;">Comparatif Final : UTILISATEUR vs MOYENNE IA</h3>
+                    <div style="height: 250px;"><canvas id="decisionChart"></canvas></div>
+                </div>
+
+                <!-- BOUTONS D'EXPORTS ENORMES A LA FIN -->
+                <div style="display: flex; gap: 20px; margin-top: 30px;">
+                    <button class="btn-action" onclick="downloadExcel()" style="flex: 1; background: #2563eb;">EXPORTER LE CLASSEUR EXCEL COMPLET</button>
+                    <button class="btn-action" onclick="downloadPDF()" style="flex: 1; background: var(--user-color);">GÉNÉRER LE RAPPORT PDF (GRAPHIQUES)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conteneur caché utilisé pour la génération propre du PDF -->
+    <div id="pdf-container" style="display: none;"></div>
+
+    <script>
+        const svgIcon = `<svg style="width:16px; height:16px; fill:currentColor; vertical-align:middle; margin-right:4px;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`;
+        const svgContextIcon = `<svg style="width:16px; height:16px; fill:currentColor; vertical-align:middle; margin-right:4px;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>`;
+
+        // --- DONNÉES DES SCÉNARIOS ---
+        const situations = {
+            1: { title: "S1 : Présentation du premier jour", criteres: [
+                "Salutation de l’ensemble de l’auditoire", "Énonciation claire du nom et du prénom", "Précision du rôle et du poste (Alternant)",
+                "Construction fluide des phrases", "Absence de tics de langage (\"Euh\", \"Genre\", répétitions inutiles)", "Structure logique de la présentation",
+                "Prise de parole assurée (affirmations directes, absence de formulations dubitatives ou inachevées)", "Utilisation d'une formule de politesse de clôture",
+                "Adaptation du vocabulaire au milieu professionnel", "Développement de son parcours (non minimaliste)"
+            ]},
+            2: { title: "S2 : Client énervé", criteres: [
+                "Initialisation de l'échange par une salutation formelle", "Utilisation d'une phrase d'empathie", "Maintien d'un langage neutre et apaisant",
+                "Demande du nom du client", "Demande du nom de l'entreprise", "Confirmation du problème lié à la TVA", "Proposition d'un arbitrage par un tiers",
+                "Absence de rejet de responsabilité (\"C'est pas moi\")", "Engagement sur un rappel ou un suivi rapide", "Recherche de précision sur la majoration"
+            ]},
+            3: { title: "S3 : Réunion - Tickets Resto", criteres: [
+                "Prise de parole directe (réponse immédiate et claire)", "Expression d'un choix clair (Papier ou Carte)", "Argumentation basée sur un fait concret",
+                "Mention du statut d'alternant pour ses droits", "Expression claire de l'intérêt ou non", "Utilisation constante de formules de respect et de politesse adaptées à la hiérarchie",
+                "Expression nette (aucune auto-correction, phrase inachevée ou répétition de mots dans la transcription)", "Précision sur le montant souhaité (min/max)",
+                "Utilisation de connecteurs logiques (Car, donc)", "Conclusion nette de l'intervention"
+            ]},
+            4: { title: "S4 : Frais Perso", criteres: [
+                "Identification de la dépense non-professionnelle", "Utilisation des termes \"impôts\" ou \"contrôle\"", "Refus d'une validation immédiate",
+                "Explication de la règle (Séparation Pro/Perso)", "Proposition de vérifier avec un supérieur", "Maintien de la décision par des phrases fermes et non négociables dans le discours",
+                "Absence d'accord oral immédiat", "Expression d'une décision claire", "Maintien de la distance professionnelle", "Qualité de la prise de congé finale"
+            ]},
+            5: { title: "S5 : Prise de RDV / Agenda", criteres: [
+                "Identification du créneau libre sur l'agenda", "Confirmation du jour exact", "Confirmation de l'heure exacte", "Précision sur les jours impossibles (planning)",
+                "Proposition de plusieurs options au client", "Demande du nom du client au téléphone", "Demande de l'objet du rendez-vous", "Demande du nom de l'entreprise",
+                "Prise des coordonnées pour confirmation", "Reformulation des informations avant de quitter"
+            ]}
+        };
+
+        const candidats = [
+            { id: 'A', name: 'Candidat A', color: '#3b82f6' }, { id: 'B', name: 'Candidat B', color: '#10b981' },
+            { id: 'C', name: 'Candidat C', color: '#f59e0b' }, { id: 'D', name: 'Candidat D', color: '#8b5cf6' },
+            { id: 'E', name: 'Candidat E', color: '#ec4899' }
+        ];
+        const ias = [
+            { id: 'Gemini', name: 'Gemini', color: 'var(--ia-gemini)' }, { id: 'Copilot', name: 'Copilot', color: 'var(--ia-copilot)' },
+            { id: 'Claude', name: 'Claude', color: 'var(--ia-claude)' }, { id: 'Mistral', name: 'Mistral', color: 'var(--ia-mistral)' },
+            { id: 'Chat GPT', name: 'Chat GPT', color: 'var(--ia-chatgpt)' }
+        ];
+
+        // --- DONNÉES IA ---
+        const scoresIA = {
+            "Gemini": { A: [13,3,14,14,8], B: [6,6,16,15,8], C: [10,14,15,11,7], D: [8,9,13,11,11], E: [7,8,14,5,11] },
+            "Copilot": { A: [15,3,16,13,8], B: [7,5,17,14,8], C: [9,15,13,12,7], D: [9,9,10,9,7], E: [9,7,14,5,11] },
+            "Claude": { A: [17,3,16,14,8], B: [9,6,16,14,8], C: [10,15,14,11,6], D: [9,8,12,11,8], E: [9,8,12,5,10] },
+            "Mistral": { A: [13,3,15,13,8], B: [11,6,16,15,8], C: [10,14,14,10,6], D: [8,8,11,11,8], E: [11,8,11,6,11] },
+            "Chat GPT": { A: [17,5,17,16,10], B: [11,8,15,14,9], C: [12,16,17,13,8], D: [10,11,15,13,11], E: [10,10,16,8,11] }
+        };
+
+        // --- MATH FUNCTIONS ---
+        function calculateMean(arr) { if(!arr || arr.length === 0) return 0; return arr.reduce((a, b) => a + b, 0) / arr.length; }
+        function calculateStdDev(arr, mean) { if(!arr || arr.length === 0) return 0; const variance = arr.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / arr.length; return Math.sqrt(variance); }
+        function calculatePearson(x, y) {
+            let x_clean = [], y_clean = [];
+            for(let i=0; i<x.length; i++) { if(x[i] !== null && y[i] !== null) { x_clean.push(x[i]); y_clean.push(y[i]); } }
+            const n = x_clean.length; if (n < 2) return null; 
+            const sumX = x_clean.reduce((a, b) => a + b, 0); const sumY = y_clean.reduce((a, b) => a + b, 0);
+            const sumX2 = x_clean.reduce((a, b) => a + b * b, 0); const sumY2 = y_clean.reduce((a, b) => a + b * b, 0);
+            const sumXY = x_clean.reduce((a, b, i) => a + b * y_clean[i], 0);
+            const numerator = (n * sumXY) - (sumX * sumY);
+            const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+            if (denominator === 0) return 0;
+            return numerator / denominator;
+        }
+
+        // --- ÉTAT GLOBAL ET INITIALISATION ---
+        let currentSit = 1;
+        let analysisChart = null, mathChart = null, decisionChart = null;
+        let selectedCandidateId = 'A';
+        let currentChartFilter = 'global';
+
+        // Grille initiale vide
+        const userNotes = {};
+        for(let s=1; s<=5; s++) { userNotes[s] = { A: Array(10).fill(null), B: Array(10).fill(null), C: Array(10).fill(null), D: Array(10).fill(null), E: Array(10).fill(null) }; }
+        
+        // Pré-remplissage S1, Critère "Énonciation claire du nom et du prénom" (index 1) car audios anonymisés
+        userNotes[1]['A'][1] = 2;
+        userNotes[1]['B'][1] = 2;
+        userNotes[1]['C'][1] = 1;
+        userNotes[1]['D'][1] = 0;
+        userNotes[1]['E'][1] = 2;
+
+        // --- INTERFACE ---
+        function openRGPD() { document.getElementById('modal-rgpd').style.display = 'flex'; }
+        function closeRGPD() { document.getElementById('modal-rgpd').style.display = 'none'; }
+        
+        function loginMain() {
+            if(document.getElementById('pass-input').value === "TOULOUSE") {
+                document.getElementById('login-page').style.display = "none";
+                buildCandidateSelectors();
+                updateUI();
+                initAnalysisChart();
+                generateIATables();
+            } else {
+                document.getElementById('error-msg-main').style.display = "block";
+            }
+        }
+
+        function goToSituation(sitNum) {
+            currentSit = sitNum;
+            document.querySelectorAll('.step-btn').forEach((btn, idx) => { btn.classList.toggle('active', (idx + 1) === sitNum); });
+            updateUI();
+        }
+
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+            if(tabId === 'tab-analyse') updateAnalysisChart(currentChartFilter);
+            if(tabId === 'tab-maths') updateMathAnalysis();
+            if(tabId === 'tab-decision') updateDecisionAnalysis();
+        }
+
+        // --- GESTION AUDIO CONTEXTE ---
+        function toggleContextAudio() {
+            const audio = document.getElementById('audio-context');
+            const btn = document.getElementById('btn-context-play');
+            if(audio.paused) {
+                document.querySelectorAll('audio').forEach(a => a.pause());
+                audio.play();
+                btn.innerHTML = '⏸ PAUSE CONTEXTE';
+            } else {
+                audio.pause();
+                btn.innerHTML = '▶ CONTEXTE S' + currentSit;
+            }
+        }
+
+        function resetContextBtn() {
+            const btn = document.getElementById('btn-context-play');
+            if(btn) btn.innerHTML = '▶ CONTEXTE S' + currentSit;
+        }
+
+        // --- GESTION INPUT CLAVIER ---
+        function handleInput(el, candId, critIdx) {
+            let val = el.value;
+            if (val !== '0' && val !== '1' && val !== '2') {
+                el.value = '';
+                userNotes[currentSit][candId][critIdx] = null;
+                el.classList.add('is-null');
+            } else {
+                userNotes[currentSit][candId][critIdx] = parseInt(val);
+                el.classList.remove('is-null');
+            }
+            
+            if(document.getElementById('tab-analyse').classList.contains('active')) updateAnalysisChart(currentChartFilter);
+            if(document.getElementById('tab-maths').classList.contains('active')) updateMathAnalysis();
+            if(document.getElementById('tab-decision').classList.contains('active')) updateDecisionAnalysis();
+        }
+
+        function getSelectHTML(candId, critIdx) {
+            let isFixed = (currentSit === 1 && critIdx === 1);
+            let val = userNotes[currentSit][candId][critIdx];
+            
+            if (isFixed) {
+                return `<input type="text" class="select-eval c-${candId}" 
+                               value="${val}" 
+                               readonly
+                               title="Audios anonymisés : note établie préalablement."
+                               style="background-color: #e2e8f0; color: #475569; cursor: help; border-color: #cbd5e1;">`;
+            }
+
+            let isNullCls = (val === null) ? 'is-null' : '';
+            let displayVal = (val !== null) ? val : '';
+            return `<input type="text" maxlength="1" class="select-eval c-${candId} ${isNullCls}" 
+                           value="${displayVal}" placeholder="-" 
+                           onfocus="this.select()" 
+                           oninput="handleInput(this, '${candId}', ${critIdx})">`;
+        }
+
+        function updateUI() {
+            const audioList = document.getElementById('audio-list');
+            
+            // Bloc Audio Contexte
+            audioList.innerHTML = `
+                <div style="font-size:12px; margin-bottom:15px; color:#4b5563; padding:10px; background:#f3f4f6; border-radius:8px;">
+                    <strong>${situations[currentSit].title}</strong><br>
+                    1. Écoutez le contexte<br>
+                    2. Lisez la grille d'évaluation<br>
+                    3. Évaluez les candidats
+                </div>
+                <div style="text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px dashed #cbd5e1;">
+                    <button id="btn-context-play" class="btn-context" onclick="toggleContextAudio()">
+                        ▶ CONTEXTE S${currentSit}
+                    </button>
+                    <audio id="audio-context" src="audios/Context_S${currentSit}.mp3" onended="resetContextBtn()"></audio>
+                </div>
+            `;
+
+            // Blocs Audios Candidats
+            candidats.forEach(cand => {
+                audioList.innerHTML += `
+                    <div class="audio-card" style="border-left-color: ${cand.color};">
+                        <div class="cand-header color-${cand.id}">${svgIcon} ${cand.name}</div>
+                        <audio controls style="width: 100%; height: 32px; outline:none;" onended="this.currentTime=0;">
+                            <source src="audios/${cand.id}_S${currentSit}.mp3" type="audio/mpeg">
+                        </audio>
+                    </div>`;
+            });
+
+            const tbody = document.getElementById('grille-content');
+            tbody.innerHTML = "";
+            situations[currentSit].criteres.forEach((crit, idx) => {
+                tbody.innerHTML += `<tr>
+                    <td>${crit}</td>
+                    <td>${getSelectHTML('A', idx)}</td>
+                    <td>${getSelectHTML('B', idx)}</td>
+                    <td>${getSelectHTML('C', idx)}</td>
+                    <td>${getSelectHTML('D', idx)}</td>
+                    <td>${getSelectHTML('E', idx)}</td>
+                </tr>`;
+            });
+        }
+
+        function buildCandidateSelectors() {
+            let html = "";
+            candidats.forEach(cand => {
+                const isActive = (cand.id === selectedCandidateId) ? 'active' : '';
+                html += `<button class="cand-select-btn ${isActive}" data-cand="${cand.id}" onclick="selectCandidate('${cand.id}')">${svgIcon} ${cand.name}</button>`;
+            });
+            document.getElementById('cand-selector-analyse').innerHTML = html;
+            document.getElementById('cand-selector-maths').innerHTML = html;
+        }
+
+        function selectCandidate(candId) {
+            selectedCandidateId = candId;
+            buildCandidateSelectors(); 
+            if(document.getElementById('tab-analyse').classList.contains('active')) updateAnalysisChart(currentChartFilter);
+            if(document.getElementById('tab-maths').classList.contains('active')) updateMathAnalysis();
+        }
+
+        // --- ANALYSE PAR CANDIDAT ---
+        function initAnalysisChart() {
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            analysisChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['S1', 'S2', 'S3', 'S4', 'S5'],
+                    datasets: [
+                        { label: 'UTILISATEUR', data: [], borderColor: '#10b981', borderWidth: 4, pointRadius: 6, pointBackgroundColor: '#10b981', tension: 0, spanGaps: false },
+                        { label: 'Gemini', data: [], borderColor: '#94a3b8', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#94a3b8', tension: 0, spanGaps: false },
+                        { label: 'Copilot', data: [], borderColor: '#64748b', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#64748b', tension: 0, spanGaps: false },
+                        { label: 'Claude', data: [], borderColor: '#475569', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#475569', tension: 0, spanGaps: false },
+                        { label: 'Mistral', data: [], borderColor: '#334155', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#334155', tension: 0, spanGaps: false },
+                        { label: 'Chat GPT', data: [], borderColor: '#1e293b', borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#1e293b', tension: 0, spanGaps: false }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: {weight: 'bold'} } }, title: { display: true, text: '', font: {size: 15} } },
+                    scales: { y: { beginAtZero: true, max: 20 }, x: { ticks: { font: {size: 11} } } }
+                }
+            });
+            updateAnalysisChart('global');
+        }
+
+        function updateAnalysisChart(filter, btnElement = null) {
+            currentChartFilter = filter;
+            if(btnElement) {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btnElement.classList.add('active');
+            }
+            
+            const cand = selectedCandidateId;
+
+            if(filter === 'global') {
+                document.getElementById('chart-container-global').style.display = 'block';
+                document.getElementById('chart-container-situation').style.display = 'none';
+                
+                analysisChart.options.plugins.title.text = `Analyse Globale - Candidat ${cand}`;
+                const userScores = [];
+                for(let s=1; s<=5; s++) {
+                    if(userNotes[s][cand].includes(null)) userScores.push(null);
+                    else userScores.push(userNotes[s][cand].reduce((a,b)=>a+b,0));
+                }
+
+                analysisChart.data.datasets[0].data = userScores;
+                analysisChart.data.datasets[1].data = scoresIA["Gemini"][cand];
+                analysisChart.data.datasets[2].data = scoresIA["Copilot"][cand];
+                analysisChart.data.datasets[3].data = scoresIA["Claude"][cand];
+                analysisChart.data.datasets[4].data = scoresIA["Mistral"][cand];
+                analysisChart.data.datasets[5].data = scoresIA["Chat GPT"][cand];
+                analysisChart.update();
+            } else {
+                document.getElementById('chart-container-global').style.display = 'none';
+                document.getElementById('chart-container-situation').style.display = 'block';
+                
+                document.getElementById('sit-view-title').innerText = `Comparatif des Notes - ${situations[filter].title} (Candidat ${cand})`;
+                
+                const sitIdx = filter - 1;
+                const userNotesArr = userNotes[filter][cand];
+                const isComplete = !userNotesArr.includes(null);
+                const userScore = isComplete ? userNotesArr.reduce((a,b)=>a+b,0) : null;
+                const userPct = isComplete ? (userScore / 20) * 100 : 0;
+                const userScoreDisplay = isComplete ? `${userScore}/20` : '-';
+                
+                let html = `
+                    <div class="sit-card" style="border: 2px solid var(--user-color);">
+                        <div class="sit-card-name" style="color:var(--user-color);">UTILISATEUR</div>
+                        <div class="sit-card-bar-bg"><div class="sit-card-bar-fill" style="width: ${userPct}%; background: var(--user-color);"></div></div>
+                        <div class="sit-card-score" style="color:var(--user-color);">${userScoreDisplay}</div>
+                    </div>
+                `;
+
+                ias.forEach(ia => {
+                    let score = scoresIA[ia.id][cand][sitIdx];
+                    let pct = score !== null ? (score / 20) * 100 : 0;
+                    let display = score !== null ? `${score}/20` : '-';
+                    html += `
+                        <div class="sit-card">
+                            <div class="sit-card-name" style="color: ${ia.color};">${ia.name}</div>
+                            <div class="sit-card-bar-bg"><div class="sit-card-bar-fill" style="width: ${pct}%; background: ${ia.color}; opacity: 0.8;"></div></div>
+                            <div class="sit-card-score" style="color: ${ia.color};">${display}</div>
+                        </div>
+                    `;
+                });
+                document.getElementById('sit-view-content').innerHTML = html;
+            }
+        }
+
+        // --- ANALYSE MATHÉMATIQUE ---
+        function updateMathAnalysis() {
+            const cand = selectedCandidateId;
+            const expertScores = []; const iaMeans = [];
+            
+            let tableHtml = `<table style="text-align:center; width:100%;"><thead><tr><th style="text-align:center;">Situation</th><th style="text-align:center;">Note UTILISATEUR</th><th style="text-align:center;">Moyenne IA (μ)</th><th style="text-align:center;">Écart-type IA (σ)</th><th style="text-align:center;">Différence (Δ)</th></tr></thead><tbody>`;
+
+            for (let s = 1; s <= 5; s++) {
+                const isComplete = !userNotes[s][cand].includes(null);
+                const humanScore = isComplete ? userNotes[s][cand].reduce((a, b) => a + b, 0) : null;
+                expertScores.push(humanScore);
+
+                const iaArr = [ scoresIA["Gemini"][cand][s-1], scoresIA["Copilot"][cand][s-1], scoresIA["Claude"][cand][s-1], scoresIA["Mistral"][cand][s-1], scoresIA["Chat GPT"][cand][s-1] ];
+                const mu_ia = calculateMean(iaArr);
+                const sigma_ia = calculateStdDev(iaArr, mu_ia);
+                const delta = isComplete ? (humanScore - mu_ia) : null;
+
+                iaMeans.push(mu_ia);
+
+                const humanDisplay = isComplete ? `${humanScore} / 20` : `<span style="color:#ef4444; font-size:11px;">En attente</span>`;
+                const deltaDisplay = isComplete ? `<span style="color: ${delta > 0 ? '#10b981' : (delta < 0 ? '#ef4444' : '#6b7280')}; font-weight:bold;">${delta > 0 ? '+' : ''}${delta.toFixed(2)}</span>` : `<span style="color:#94a3b8;">-</span>`;
+
+                tableHtml += `<tr><td style="font-weight:bold; color: #374151;">S${s}</td><td style="font-weight:bold; color: #111827;">${humanDisplay}</td><td style="color: #2563eb; font-weight: 600;">${mu_ia.toFixed(2)}</td><td style="color: #64748b;">${sigma_ia.toFixed(2)}</td><td>${deltaDisplay}</td></tr>`;
+            }
+            tableHtml += `</tbody></table>`;
+            document.getElementById('math-table-container').innerHTML = tableHtml;
+
+            const r = calculatePearson(iaMeans, expertScores);
+            const rElement = document.getElementById('pearson-value');
+            if (r !== null) {
+                rElement.innerText = r.toFixed(3);
+                if (r >= 0.5) rElement.style.color = '#10b981';
+                else if (r >= 0) rElement.style.color = '#f59e0b';
+                else rElement.style.color = '#ef4444';
+            } else {
+                rElement.innerText = "-";
+                rElement.style.color = '#111827';
+            }
+
+            if (!mathChart) {
+                const ctx = document.getElementById('mathChart').getContext('2d');
+                mathChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['S1', 'S2', 'S3', 'S4', 'S5'],
+                        datasets: [
+                            { label: 'Note UTILISATEUR', data: expertScores, borderColor: '#10b981', borderWidth: 3, pointBackgroundColor: '#10b981', tension: 0.1, spanGaps: false },
+                            { label: 'Moyenne Consensus IA (μ)', data: iaMeans, borderColor: '#2563eb', borderWidth: 3, borderDash: [5, 5], pointBackgroundColor: '#2563eb', tension: 0.1 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, scales: { y: { min: 0, max: 20 } } }
+                });
+            } else {
+                mathChart.data.datasets[0].data = expertScores;
+                mathChart.data.datasets[1].data = iaMeans;
+                mathChart.update();
+            }
+        }
+
+        // --- AIDE A LA DECISION ---
+        function updateDecisionAnalysis() {
+            let userTotals = {A:0, B:0, C:0, D:0, E:0};
+            let userComplete = {A:true, B:true, C:true, D:true, E:true};
+            for(let s=1; s<=5; s++) {
+                candidats.forEach(c => {
+                    if(userNotes[s][c.id].includes(null)) { userComplete[c.id] = false; } 
+                    else { userTotals[c.id] += userNotes[s][c.id].reduce((a,b)=>a+b,0); }
+                });
+            }
+
+            let iaTotals = {A:0, B:0, C:0, D:0, E:0};
+            candidats.forEach(c => {
+                let sum = 0;
+                ias.forEach(ia => { sum += scoresIA[ia.id][c.id].reduce((a,b)=>a+b,0); });
+                iaTotals[c.id] = sum / ias.length; 
+            });
+
+            let userRankArr = candidats.map(c => ({id: c.id, name: c.name, score: userComplete[c.id] ? userTotals[c.id] : -1})).sort((a,b) => b.score - a.score);
+            let iaRankArr = candidats.map(c => ({id: c.id, name: c.name, score: iaTotals[c.id]})).sort((a,b) => b.score - a.score);
+
+            let htmlTable = `<table style="width:100%; text-align:center; border-collapse: collapse; margin-bottom:0;">
+                <thead><tr style="background:#f8fafc;"><th style="padding:12px; border-bottom:2px solid #e2e8f0; text-align:center; font-size:12px;">CANDIDAT</th><th style="padding:12px; border-bottom:2px solid #e2e8f0; color:var(--user-color); text-align:center; font-size:12px;">UTILISATEUR</th><th style="padding:12px; border-bottom:2px solid #e2e8f0; color:#2563eb; text-align:center; font-size:12px;">MOYENNE IA</th></tr></thead><tbody>`;
+            candidats.forEach(c => {
+                let uScore = userComplete[c.id] ? userTotals[c.id] : '<span style="color:#ef4444; font-size:11px;">Incomplet</span>';
+                htmlTable += `<tr><td style="padding:12px; border-bottom:1px solid #f1f5f9; font-weight:bold;">${c.name}</td>
+                    <td style="padding:12px; border-bottom:1px solid #f1f5f9; font-weight:bold; color:var(--user-color);">${uScore}</td>
+                    <td style="padding:12px; border-bottom:1px solid #f1f5f9; font-weight:bold; color:#2563eb;">${iaTotals[c.id].toFixed(1)}</td></tr>`;
+            });
+            htmlTable += `</tbody></table>`;
+            document.getElementById('decision-table-container').innerHTML = htmlTable;
+
+            let allComplete = Object.values(userComplete).every(v => v);
+            let htmlRanking = `<div style="display:flex; justify-content:space-between; margin-bottom: 25px;">
+                <div style="flex:1; padding: 15px; border-right: 1px solid #e2e8f0;">
+                    <div style="font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; margin-bottom:10px;">Top 3 UTILISATEUR</div>
+                    ${allComplete ? `
+                        <div style="font-weight:900; font-size:16px; color:var(--user-color); margin-bottom:6px;">1. ${userRankArr[0].name} (${userRankArr[0].score} pts)</div>
+                        <div style="font-size:14px; color:#475569; margin-bottom:4px; font-weight:600;">2. ${userRankArr[1].name}</div>
+                        <div style="font-size:14px; color:#475569; font-weight:600;">3. ${userRankArr[2].name}</div>
+                    ` : `<div style="font-size:13px; font-weight:bold; color:#ef4444;">Évaluations incomplètes</div>`}
+                </div>
+                <div style="flex:1; padding: 15px;">
+                    <div style="font-size:12px; color:#64748b; font-weight:bold; text-transform:uppercase; margin-bottom:10px;">Top 3 Consensus IA</div>
+                    <div style="font-weight:900; font-size:16px; color:#2563eb; margin-bottom:6px;">1. ${iaRankArr[0].name} (${iaRankArr[0].score.toFixed(1)} pts)</div>
+                    <div style="font-size:14px; color:#475569; margin-bottom:4px; font-weight:600;">2. ${iaRankArr[1].name}</div>
+                    <div style="font-size:14px; color:#475569; font-weight:600;">3. ${iaRankArr[2].name}</div>
+                </div>
+            </div>`;
+            
+            let recHTML = "";
+            if(allComplete) {
+                if(userRankArr[0].id === iaRankArr[0].id) {
+                    recHTML = `<div style="background:#ecfdf5; border:1px solid #10b981; padding:20px; border-radius:8px; text-align:center;">
+                        <div style="font-size:13px; color:#059669; font-weight:bold; text-transform:uppercase;">Recommandation Stratégique (Accord Parfait)</div>
+                        <div style="font-size:15px; font-weight:900; color:#111827; margin-top:8px;">EMBAUCHE RECOMMANDÉE : ${userRankArr[0].name}</div>
+                    </div>`;
+                } else {
+                     recHTML = `<div style="background:#eff6ff; border:1px solid #3b82f6; padding:20px; border-radius:8px; text-align:center;">
+                        <div style="font-size:13px; color:#1d4ed8; font-weight:bold; text-transform:uppercase;">Recommandation Stratégique (Divergence)</div>
+                        <div style="font-size:14px; font-weight:900; color:#111827; margin-top:8px;">Concertation requise entre profil choisi par l'utilisateur (${userRankArr[0].name}) et profil IA (${iaRankArr[0].name})</div>
+                    </div>`;
+                }
+            } else {
+                recHTML = `<div style="background:#f8fafc; border:1px solid #cbd5e1; padding:20px; border-radius:8px; text-align:center; color:#64748b; font-weight:bold;">Veuillez compléter toutes les grilles pour générer la recommandation.</div>`;
+            }
+            document.getElementById('decision-ranking-container').innerHTML = htmlRanking + recHTML;
+
+            let uData = candidats.map(c => userComplete[c.id] ? userTotals[c.id] : 0);
+            let iData = candidats.map(c => iaTotals[c.id]);
+
+            if(!decisionChart) {
+                const ctx = document.getElementById('decisionChart').getContext('2d');
+                decisionChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: candidats.map(c => c.name),
+                        datasets: [
+                            { label: 'UTILISATEUR', data: uData, backgroundColor: '#10b981', borderRadius: 4 },
+                            { label: 'MOYENNE IA', data: iData, backgroundColor: '#2563eb', borderRadius: 4 }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+                });
+            } else {
+                decisionChart.data.datasets[0].data = uData;
+                decisionChart.data.datasets[1].data = iData;
+                decisionChart.update();
+            }
+        }
+
+        // --- Modale IA ---
+        function openIAModal() { document.getElementById('modal-ia').style.display = 'flex'; }
+        function closeIAModal() { document.getElementById('modal-ia').style.display = 'none'; document.getElementById('pass-ia').value = ''; document.getElementById('error-msg-ia').style.display = 'none'; }
+        function loginIA() { if(document.getElementById('pass-ia').value === "TOULOUSE") { document.getElementById('ia-auth').style.display = "none"; document.getElementById('ia-dashboard').style.display = "flex"; } else { document.getElementById('error-msg-ia').style.display = "block"; } }
+        function switchIATab(tabId, btn) {
+            document.querySelectorAll('.ia-tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.ia-tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        function generateIATables() {
+            let htmlGlobal = `<table style="width:100%; border-collapse:collapse; text-align:center; margin-top:10px;"><thead style="background:#f3f4f6;"><tr><th style="padding:10px;">Modèle IA</th><th class="color-A">Cand. A</th><th class="color-B">Cand. B</th><th class="color-C">Cand. C</th><th class="color-D">Cand. D</th><th class="color-E">Cand. E</th></tr></thead><tbody>`;
+            ias.forEach(ia => {
+                let totals = candidats.map(c => scoresIA[ia.id][c.id].reduce((a,b)=>a+b,0));
+                htmlGlobal += `<tr><td style="padding:10px; border-bottom:1px solid #e5e7eb; font-weight:bold; color:${ia.color};">${ia.name}</td><td style="border-bottom:1px solid #e5e7eb;">${totals[0]}</td><td style="border-bottom:1px solid #e5e7eb;">${totals[1]}</td><td style="border-bottom:1px solid #e5e7eb;">${totals[2]}</td><td style="border-bottom:1px solid #e5e7eb;">${totals[3]}</td><td style="border-bottom:1px solid #e5e7eb;">${totals[4]}</td></tr>`;
+            });
+            htmlGlobal += `</tbody></table>`;
+            document.getElementById('ia-global').innerHTML = htmlGlobal;
+
+            let htmlCand = "";
+            candidats.forEach(cand => {
+                htmlCand += `<div style="margin-bottom: 25px;"><h4 style="margin: 0 0 10px 0; font-size: 15px; border-left: 4px solid ${cand.color}; padding-left: 10px;">${cand.name}</h4><table style="width:100%; border-collapse: collapse; text-align:center;"><thead style="background:#f3f4f6;"><tr><th style="padding:8px;">Modèle IA</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th><th>S5</th></tr></thead><tbody>`;
+                ias.forEach(ia => {
+                    let scores = scoresIA[ia.id][cand.id];
+                    htmlCand += `<tr><td style="padding:6px; border-bottom:1px solid #e5e7eb; font-weight:bold; color:${ia.color};">${ia.name}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[0]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[1]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[2]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[3]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[4]}</td></tr>`;
+                });
+                htmlCand += `</tbody></table></div>`;
+            });
+            document.getElementById('ia-candidats').innerHTML = htmlCand;
+
+            let htmlIA = "";
+            ias.forEach(ia => {
+                htmlIA += `<div style="margin-bottom: 25px;"><h4 style="margin: 0 0 10px 0; font-size: 15px; border-left: 4px solid ${ia.color}; padding-left: 10px; color:${ia.color};">${ia.name}</h4><table style="width:100%; border-collapse: collapse; text-align:center;"><thead style="background:#f3f4f6;"><tr><th style="padding:8px;">Candidat</th><th>S1</th><th>S2</th><th>S3</th><th>S4</th><th>S5</th></tr></thead><tbody>`;
+                candidats.forEach(cand => {
+                    let scores = scoresIA[ia.id][cand.id];
+                    htmlIA += `<tr><td style="padding:6px; border-bottom:1px solid #e5e7eb; font-weight:bold; color:${cand.color};">${cand.name}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[0]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[1]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[2]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[3]}</td><td style="border-bottom:1px solid #e5e7eb;">${scores[4]}</td></tr>`;
+                });
+                htmlIA += `</tbody></table></div>`;
+            });
+            document.getElementById('ia-modeles').innerHTML = htmlIA;
+        }
+
+        // --- EXPORT MULTI-ONGLETS EXCEL (via SheetJS) ---
+        function downloadExcel() {
+            const wb = XLSX.utils.book_new();
+
+            // ONGLET 1 : AIDE A LA DECISION
+            const dataDec = [
+                ["RAPPORT FINAL D'AUDIT - POSTURES PROFESSIONNELLES"], [""],
+                ["INSTRUCTIONS GRAPHIQUES :", "Sélectionnez les colonnes B et C puis insérez un graphique en Barres pour visualiser l'écart entre Utilisateur et Moyenne IA."], [""],
+                ["1. RÉSULTAT FINAL ET AIDE À LA DÉCISION"],
+                ["CANDIDAT", "SCORE UTILISATEUR (/100)", "SCORE MOYEN IA (/100)"]
+            ];
+            candidats.forEach(c => {
+                let uTotal = 0; let isComplete = true;
+                for(let s=1; s<=5; s++) {
+                    if(userNotes[s][c.id].includes(null)) { isComplete = false; break; }
+                    uTotal += userNotes[s][c.id].reduce((a,b)=>a+b,0);
+                }
+                let iaTotalSum = 0;
+                ias.forEach(ia => { iaTotalSum += scoresIA[ia.id][c.id].reduce((a,b)=>a+b,0); });
+                dataDec.push([c.name, isComplete ? uTotal : 'Incomplet', parseFloat((iaTotalSum / ias.length).toFixed(1))]);
+            });
+            const wsDec = XLSX.utils.aoa_to_sheet(dataDec);
+            XLSX.utils.book_append_sheet(wb, wsDec, "1_Aide_Decision");
+
+            // ONGLET 2 : RECAP PAR CANDIDAT
+            const dataCand = [ ["2. RÉCAPITULATIF DES NOTES PAR CANDIDAT ET SITUATION"], ["Candidat", "Évaluateur", "S1", "S2", "S3", "S4", "S5", "Total"] ];
+            candidats.forEach(c => {
+                let uScores = []; let uTotal = 0;
+                for(let s=1; s<=5; s++) {
+                    let sVal = userNotes[s][c.id].includes(null) ? 'Inc' : userNotes[s][c.id].reduce((a,b)=>a+b,0);
+                    uScores.push(sVal);
+                    if(sVal !== 'Inc') uTotal += sVal;
+                }
+                dataCand.push([c.name, "UTILISATEUR", ...uScores, uScores.includes('Inc') ? 'Inc' : uTotal]);
+                ias.forEach(ia => {
+                    let iaScores = scoresIA[ia.id][c.id];
+                    dataCand.push([c.name, ia.name, ...iaScores, iaScores.reduce((a,b)=>a+b,0)]);
+                });
+                dataCand.push([""]); 
+            });
+            const wsCand = XLSX.utils.aoa_to_sheet(dataCand);
+            XLSX.utils.book_append_sheet(wb, wsCand, "2_Recap_Candidats");
+
+            // ONGLET 3 : ANALYSE MATHEMATIQUE
+            const dataMath = [
+                ["INSTRUCTIONS GRAPHIQUES :", "Sélectionnez les colonnes 'Note Utilisateur' et 'Moyenne IA' pour un candidat donné, puis insérez un graphique en Courbes."], [""],
+                ["3. ANALYSE MATHÉMATIQUE (EXPERT VS CONSENSUS IA)"]
+            ];
+            candidats.forEach(c => {
+                dataMath.push(["Candidat", "Situation", "Note Utilisateur", "Moyenne IA (μ)", "Écart-type IA (σ)", "Différence (Δ)"]);
+                let candExpertScores = [];
+                let candIAMeans = [];
+                for(let s=1; s<=5; s++) {
+                    let uComplete = !userNotes[s][c.id].includes(null);
+                    let uScore = uComplete ? userNotes[s][c.id].reduce((a,b)=>a+b,0) : 'Incomplet';
+                    
+                    let iaArr = [scoresIA["Gemini"][c.id][s-1], scoresIA["Copilot"][c.id][s-1], scoresIA["Claude"][c.id][s-1], scoresIA["Mistral"][c.id][s-1], scoresIA["Chat GPT"][c.id][s-1]];
+                    let mu = calculateMean(iaArr);
+                    let sigma = calculateStdDev(iaArr, mu);
+                    let delta = uComplete ? (uScore - mu) : 'Incomplet';
+                    
+                    candExpertScores.push(uComplete ? uScore : null);
+                    candIAMeans.push(mu);
+                    dataMath.push([c.name, `S${s}`, uScore, parseFloat(mu.toFixed(2)), parseFloat(sigma.toFixed(2)), uComplete ? parseFloat(delta.toFixed(2)) : delta]);
+                }
+                let r = calculatePearson(candIAMeans, candExpertScores);
+                let rDisplay = (r !== null) ? parseFloat(r.toFixed(3)) : 'Incomplet';
+                dataMath.push(["", "", "CORRÉLATION DE PEARSON (r) :", rDisplay, "", ""]);
+                dataMath.push([""]);
+            });
+            const wsMath = XLSX.utils.aoa_to_sheet(dataMath);
+            XLSX.utils.book_append_sheet(wb, wsMath, "3_Analyse_Math");
+
+            // ONGLET 4 : GRILLES DETAILLEES
+            const dataDetail = [ ["4. GRILLES DE NOTATION DÉTAILLÉES DE L'UTILISATEUR"], ["Situation", "Critère", "Note Cand A", "Note Cand B", "Note Cand C", "Note Cand D", "Note Cand E"] ];
+            for(let sit = 1; sit <= 5; sit++) {
+                situations[sit].criteres.forEach((crit, idx) => {
+                    let nA = userNotes[sit].A[idx] !== null ? userNotes[sit].A[idx] : "";
+                    let nB = userNotes[sit].B[idx] !== null ? userNotes[sit].B[idx] : "";
+                    let nC = userNotes[sit].C[idx] !== null ? userNotes[sit].C[idx] : "";
+                    let nD = userNotes[sit].D[idx] !== null ? userNotes[sit].D[idx] : "";
+                    let nE = userNotes[sit].E[idx] !== null ? userNotes[sit].E[idx] : "";
+                    dataDetail.push([`S${sit}`, crit, nA, nB, nC, nD, nE]);
+                });
+                dataDetail.push([""]);
+            }
+            const wsDetail = XLSX.utils.aoa_to_sheet(dataDetail);
+            XLSX.utils.book_append_sheet(wb, wsDetail, "4_Grilles_Notes");
+
+            XLSX.writeFile(wb, "Audit_SoftSkills_Complet.xlsx");
+        }
+
+        // --- EXPORT PDF (via html2pdf) ---
+        function downloadPDF() {
+            if(!decisionChart || !mathChart || !analysisChart) {
+                alert("Veuillez d'abord naviguer sur les différents onglets d'analyse pour générer les graphiques avant l'export.");
+                return;
+            }
+
+            const pdfContainer = document.getElementById('pdf-container');
+            
+            let allMathTablesHTML = "";
+            candidats.forEach(c => {
+                let expertScores = []; let iaMeans = [];
+                let tableHtml = `<h4 style="color:#2563eb; margin-bottom:5px; margin-top:15px; font-size:14px;">${c.name}</h4>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:10px; text-align:center;" border="1">
+                <thead style="background:#f3f4f6;"><tr><th style="padding:4px;">Situation</th><th style="padding:4px;">Note UTILISATEUR</th><th style="padding:4px;">Moyenne IA (μ)</th><th style="padding:4px;">Écart-type IA (σ)</th><th style="padding:4px;">Différence (Δ)</th></tr></thead><tbody>`;
+
+                for (let s = 1; s <= 5; s++) {
+                    const isComplete = !userNotes[s][c.id].includes(null);
+                    const humanScore = isComplete ? userNotes[s][c.id].reduce((a, b) => a + b, 0) : null;
+                    expertScores.push(humanScore);
+
+                    const iaArr = [ scoresIA["Gemini"][c.id][s-1], scoresIA["Copilot"][c.id][s-1], scoresIA["Claude"][c.id][s-1], scoresIA["Mistral"][c.id][s-1], scoresIA["Chat GPT"][c.id][s-1] ];
+                    const mu_ia = calculateMean(iaArr);
+                    const sigma_ia = calculateStdDev(iaArr, mu_ia);
+                    const delta = isComplete ? (humanScore - mu_ia) : null;
+                    iaMeans.push(mu_ia);
+
+                    const humanDisplay = isComplete ? `${humanScore}` : `-`;
+                    const deltaDisplay = isComplete ? `${delta > 0 ? '+' : ''}${delta.toFixed(2)}` : `-`;
+
+                    tableHtml += `<tr><td style="padding:4px;">S${s}</td><td style="padding:4px;">${humanDisplay}</td><td style="padding:4px;">${mu_ia.toFixed(2)}</td><td style="padding:4px;">${sigma_ia.toFixed(2)}</td><td style="padding:4px;">${deltaDisplay}</td></tr>`;
+                }
+                let r = calculatePearson(iaMeans, expertScores);
+                let rDisplay = '-';
+                let rColor = '#111827';
+                if (r !== null) {
+                    rDisplay = r.toFixed(3);
+                    if (r >= 0.5) rColor = '#10b981';
+                    else if (r >= 0) rColor = '#f59e0b';
+                    else rColor = '#ef4444';
+                }
+                
+                tableHtml += `</tbody></table><div style="font-size:11px;"><strong>Corrélation de Pearson (r) :</strong> <span style="color:${rColor}; font-weight:bold;">${rDisplay}</span></div>`;
+                allMathTablesHTML += tableHtml;
+            });
+
+            pdfContainer.innerHTML = `
+                <div style="padding: 20px; font-family: sans-serif; color: #111827;">
+                    <h1 style="text-align: center; color: #111827; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 10px; font-size:22px;">RAPPORT D'AUDIT : POSTURES PROFESSIONNELLES</h1>
+                    
+                    <!-- 1. AIDE A LA DECISION -->
+                    <h2 style="color: #2563eb; font-size: 16px; margin-bottom: 15px;">1. AIDE À LA DÉCISION & RECOMMANDATION</h2>
+                    <div style="margin-bottom: 20px; font-size:12px;">${document.getElementById('decision-ranking-container').innerHTML}</div>
+                    <div style="margin-bottom: 20px; font-size:12px;">${document.getElementById('decision-table-container').innerHTML}</div>
+                    <div style="text-align:center; margin-bottom: 30px;">
+                        <img src="${decisionChart.toBase64Image()}" style="max-width: 90%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    </div>
+                    
+                    <div class="html2pdf__page-break"></div>
+                    
+                    <!-- 2. ANALYSE MATHEMATIQUE -->
+                    <h2 style="color: #2563eb; font-size: 16px; margin-bottom: 15px; padding-top: 20px;">2. ANALYSE MATHÉMATIQUE DÉTAILLÉE</h2>
+                    <div>${allMathTablesHTML}</div>
+                    <div style="text-align:center; margin-top: 20px;">
+                        <p style="font-size:11px; font-style:italic; margin-bottom:5px;">Aperçu de la tendance pour le dernier candidat consulté (${selectedCandidateId}) :</p>
+                        <img src="${mathChart.toBase64Image()}" style="max-width: 80%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    </div>
+
+                    <div class="html2pdf__page-break"></div>
+
+                    <!-- 3. VISUALISATION GLOBALE -->
+                    <h2 style="color: #2563eb; font-size: 16px; margin-bottom: 15px; padding-top: 20px;">3. VISUALISATION DES DONNÉES</h2>
+                    <div style="text-align:center; margin-bottom: 30px;">
+                        <p style="font-size:11px; font-style:italic; margin-bottom:5px;">Dernière vue d'analyse consultée :</p>
+                        <img src="${analysisChart.toBase64Image()}" style="max-width: 90%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    </div>
+
+                    <!-- 4. DONNEES BRUTES -->
+                    <h2 style="color: #2563eb; font-size: 16px; margin-bottom: 15px; padding-top: 10px;">4. RÉCAPITULATIF DES NOTES IA</h2>
+                    <div style="font-size: 10px;">
+                        ${document.getElementById('ia-global').innerHTML}
+                    </div>
+                </div>
+            `;
+            
+            pdfContainer.style.display = 'block';
+
+            const opt = {
+                margin:       10,
+                filename:     'Rapport_Audit_DSCG.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(pdfContainer).save().then(() => {
+                pdfContainer.style.display = 'none';
+                pdfContainer.innerHTML = '';
+            });
+        }
+    </script>
+</body>
+</html>
